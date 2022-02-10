@@ -1,16 +1,21 @@
 import { useState } from 'react';
 
+import {auth, storage} from './Firebase';
 import { 
     createUserWithEmailAndPassword,
     onAuthStateChanged,
     signInWithEmailAndPassword,
     signOut,
 } from 'firebase/auth';
-import {auth} from './Firebase';
+import { 
+    getDownloadURL,
+    ref, uploadBytesResumable 
+} from 'firebase/storage';
 
 import "./App.css";
 
 function App() {
+    //  Authentication
     const [registerloading, setregisterloading] = useState(false);
     const [loginloading, setloginloading] = useState(false);
     const [registerEmail, setregisterEmail] = useState('');
@@ -19,6 +24,9 @@ function App() {
     const [loginPassword, setloginPassword] = useState('');
 
     const [user, setuser] = useState({});
+
+    //  Storage
+    const [Progress, setProgress] = useState(0);
 
     onAuthStateChanged(auth, (currentUser) => {
         setuser(currentUser);
@@ -47,6 +55,34 @@ function App() {
     async function logout() {
         await signOut(auth);
         console.log('Logged Out');
+    }
+
+    function handleSubmit(event){
+        event.preventDefault();
+        const file = event.target[0].files[0];
+        uploadFile(file);
+    }
+    function uploadFile(file) {
+        if(!file) return;
+        const storageRef = ref(storage, `/postImages/${file.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on(
+            "state_changed",
+            (snapshot) => {
+                const Progress = Math.round(
+                    snapshot.bytesTransferred / snapshot.totalBytes * 100
+                );
+                setProgress(Progress);
+            },
+            (err) => {
+                console.log(err);
+            },
+            () => {
+                getDownloadURL(uploadTask.snapshot.ref)
+                .then((downloadUrl) => console.log(downloadUrl))
+            }
+        )
     }
 
     return (
@@ -83,6 +119,13 @@ function App() {
                 <h1>Log Out</h1>
                 {user?.email}
                 <button onClick={logout} >Log Out</button>
+            </div>
+            <div>
+                <form onSubmit={handleSubmit}>
+                    <input type='file' placeholder='Choose File'/>
+                    <button type='submit'>Upload</button>
+                </form>
+                <h3>Uploaded {Progress} %</h3>
             </div>
         </>
     );
